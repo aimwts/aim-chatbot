@@ -1,15 +1,6 @@
 import { GoogleGenAI, Chat, GenerateContentResponse } from "@google/genai";
 import { GroundingSource, Attachment } from "../types";
 
-const apiKey = process.env.API_KEY;
-
-if (!apiKey) {
-  console.error("Gemini API Key is missing. Ensure process.env.API_KEY is set.");
-}
-
-// Initialize the API client
-const ai = new GoogleGenAI({ apiKey: apiKey || '' });
-
 // Maintain a singleton chat session instance in memory
 let chatSession: Chat | null = null;
 
@@ -34,6 +25,14 @@ export const streamGeminiResponse = async (
   attachment: Attachment | undefined,
   onChunk: (text: string, sources?: GroundingSource[]) => void
 ): Promise<void> => {
+  // CRITICAL: Initialize AI client here to ensure we grab the latest API key 
+  // from process.env after the user has completed the selection flow.
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    throw new Error("API Key is missing. Please select an API key.");
+  }
+  const ai = new GoogleGenAI({ apiKey });
+
   try {
     let responseStream;
 
@@ -44,7 +43,10 @@ export const streamGeminiResponse = async (
         model: 'gemini-3-pro-preview',
         contents: {
           parts: [
-            { inlineData: attachment.inlineData }, // Correctly wrap inlineData
+             // Wrap inlineData in an object as required by the new SDK structure for some models
+             // or simply pass the inlineData object if the SDK expects it directly in parts.
+             // Based on latest usage:
+            { inlineData: attachment.inlineData }, 
             { text: prompt }
           ]
         }
@@ -108,5 +110,45 @@ export const streamGeminiResponse = async (
     }
 
     throw new Error(errorMessage);
+  }
+};
+
+export const generateVideo = async (prompt: string): Promise<string> => {
+  // CRITICAL: Initialize AI client here
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    throw new Error("API Key is missing. Please select an API key.");
+  }
+  const ai = new GoogleGenAI({ apiKey });
+
+  try {
+    let operation = await ai.models.generateVideos({
+      model: 'veo-3.1-fast-generate-preview',
+      prompt: prompt,
+      config: {
+        numberOfVideos: 1,
+        resolution: '720p',
+        aspectRatio: '16:9'
+      }
+    });
+
+    // Poll for completion
+    while (!operation.done) {
+      await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+      operation = await ai.operations.getVideosOperation({ operation: operation });
+    }
+
+    const videoUri = operation.response?.generatedVideos?.[0]?.video?.uri;
+    
+    if (!videoUri) {
+      throw new Error("No video URI returned from the model.");
+    }
+
+    // The URI requires the API key to be appended
+    return `${videoUri}&key=${apiKey}`;
+
+  } catch (error: any) {
+    console.error("Gemini Video Generation Error:", error);
+    throw new Error("Failed to generate video. Please try again.");
   }
 };

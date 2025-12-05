@@ -5,9 +5,9 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   define: {
-    // Inject the API key from the environment variable. 
-    // We use JSON.stringify to ensure it's treated as a string literal in the client code.
-    'process.env.API_KEY': JSON.stringify(process.env.API_KEY || ''),
+    // Define process.env to allow runtime injection of environment variables
+    // without statically replacing them at build time.
+    'process.env': process.env
   },
   server: {
     port: 3000,
