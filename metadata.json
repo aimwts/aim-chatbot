@@ -1,0 +1,7 @@
+{
+  "name": "Gemini Instant Answers",
+  "description": "A high-performance React application leveraging Google's Gemini 2.5 Flash model to provide instant, AI-generated answers to user queries with a polished, modern interface.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
